@@ -33,22 +33,8 @@ ipcRenderer.on("screenshot-analysis", (event, analysis) => {
   // Get the analysis container
   const analysisContainer = document.getElementById("analysis");
 
-  // Check if there is an existing placeholder or message
-  if (analysisContainer.firstChild) {
-    // Replace the content of the first child (which should be the placeholder/message) with the analysis
-    // analysisContainer.firstChild.textContent = analysis;
-    updateWindowMessage(analysis);
-  } else {
-    // If the placeholder/message is somehow missing, create a new div for the analysis
-    // const analysisMessage = document.createElement("div");
-    // analysisMessage.textContent = analysis;
-    // analysisMessage.style.borderBottom = "1px solid #ddd"; // Add styling if needed
-    // analysisMessage.style.padding = "10px"; // Add styling if needed
-    // analysisMessage.style.marginTop = "10px"; // Add styling if needed
-
-    // Append the new analysis message to the analysis container
-    updateWindowMessage(analysis);
-  }
+  updateWindowMessage(analysis);
+  // }
 });
 
 ipcRenderer.on("start-recording", async () => {
@@ -89,8 +75,34 @@ ipcRenderer.on("stop-recording", () => {
   }
 });
 
+ipcRenderer.on("add-window-name-to-app", (event, windowName) => {
+  // function addWindowNameToApp(windowName) {
+  //  ipcRenderer.send("select-window", windowName);
+  const analysisContainer = document.getElementById("analysis");
+
+  // Create a new section for this window
+  const windowSection = document.createElement("div");
+  windowSection.className = "window-section";
+
+  const title = document.createElement("h3");
+  title.textContent = `${windowName}`;
+  windowSection.appendChild(title);
+
+  const message = document.createElement("div");
+  message.className = "window-message";
+  windowSection.appendChild(message);
+
+  // Prepend the new section to the analysis container
+  if (analysisContainer.firstChild) {
+    analysisContainer.insertBefore(windowSection, analysisContainer.firstChild);
+  } else {
+    analysisContainer.appendChild(windowSection);
+  }
+  // }
+});
+
 function selectWindow(windowName) {
-  console.log(windowName);
+  // console.log(windowName);
   ipcRenderer.send("select-window", windowName);
 
   const analysisContainer = document.getElementById("analysis");
@@ -127,7 +139,15 @@ function updateAnalysisPlaceholder(message) {
 }
 
 function updateWindowMessage(message) {
-  ``;
+  // ``;
+  // const latestWindowSection = document.querySelector(".window-section");
+  // if (latestWindowSection) {
+  //   const messageDiv = latestWindowSection.querySelector(".window-message");
+  //   if (messageDiv) {
+  //     messageDiv.textContent = message;
+  //   }
+  // }
+  // console.log("only got here");
   const latestWindowSection = document.querySelector(".window-section");
   if (latestWindowSection) {
     const messageDiv = latestWindowSection.querySelector(".window-message");
@@ -135,4 +155,6 @@ function updateWindowMessage(message) {
       messageDiv.textContent = message;
     }
   }
+  // console.log("got here instead");
+  // ipcRenderer.send("update-analysis-content", latestWindowSection.innerHTML);
 }

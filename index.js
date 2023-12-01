@@ -16,10 +16,12 @@ const ffmpegStatic = require("ffmpeg-static");
 const FormData = require("form-data");
 // const Speaker = require("speaker");
 const { exec } = require("child_process");
+const activeWin = require("active-win");
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
 let mainWindow;
+let notificationWindow;
 
 dotenv.config();
 const openAiApiKey = process.env.OPENAI_API_KEY;
@@ -30,8 +32,8 @@ const openai = new OpenAI({
 // Function to create the main window
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 800,
+    width: 600,
+    height: 400,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -45,6 +47,32 @@ function createMainWindow() {
   // mainWindow.webContents.openDevTools();
 }
 
+const notificationWidth = 300; // Width of your notification window
+const notificationHeight = 100; // Height of your notification window
+let isPositionLocked = false;
+
+function createNotificationWindow() {
+  notificationWindow = new BrowserWindow({
+    width: notificationWidth,
+    height: notificationHeight,
+    frame: false,
+    transparent: true, // Enable transparency
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    x: 100,
+    y: 100,
+  });
+  notificationWindow.setOpacity(0.8);
+
+  notificationWindow.loadFile("notifications.html"); // Load your custom HTML content
+}
+
+// app.whenReady().then(createNotificationWindow);
+
 let conversationHistory = [
   {
     role: "system",
@@ -52,6 +80,28 @@ let conversationHistory = [
       "You are helping users with questions about their OSX applications based on screenshots, always answer in at most one sentence.",
   },
 ];
+
+function positionNotificationAtTopRight(selectedWindow) {
+  if (isPositionLocked) {
+    return; // Do not reposition if locked
+  }
+  const notificationWidth = 300; // Width of your notification window
+  const notificationHeight = 100; // Height of your notification window
+
+  // Calculate top-right position
+  const topRightX =
+    selectedWindow.bounds.x + selectedWindow.bounds.width - notificationWidth;
+  const topRightY = selectedWindow.bounds.y;
+
+  // Ensure the window is not positioned off-screen
+  const safeX = Math.max(topRightX, 0);
+  const safeY = Math.max(topRightY, 0);
+
+  // Set the position of the notification window
+  if (notificationWindow) {
+    notificationWindow.setPosition(safeX - 15, safeY + 15);
+  }
+}
 
 ipcMain.on("audio-buffer", (event, buffer) => {
   const audioDir = path.join(__dirname, "audio");
@@ -98,6 +148,10 @@ ipcMain.on("audio-buffer", (event, buffer) => {
             audioInput
           );
           mainWindow.webContents.send(
+            "screenshot-analysis",
+            screenshotAnalysis
+          );
+          notificationWindow.webContents.send(
             "screenshot-analysis",
             screenshotAnalysis
           );
@@ -227,6 +281,13 @@ async function processScreenshot(inputScreenshot, audioInput) {
         },
       },
     ],
+    // content: [
+    //   { type: "text", text: audioInput },
+    //   {
+    //     image: base64Image,
+    //     resize: 1024, // Include the resize parameter here
+    //   },
+    // ],
   };
 
   conversationHistory.push(userMessage);
@@ -245,12 +306,14 @@ async function processScreenshot(inputScreenshot, audioInput) {
     });
 
     const responseContent = response.choices[0].message.content;
-    console.log(responseContent);
+    // console.log(responseContent);
 
     conversationHistory.push({
       role: "assistant",
       content: responseContent,
     });
+    // responseContent =
+    //   "You have four images in this folder. If you want me to help you with something, let me know.";
     return responseContent;
   } catch (error) {
     console.log(error);
@@ -308,14 +371,45 @@ let isRecording = false;
 // Electron app ready
 app.whenReady().then(() => {
   createMainWindow();
+  createNotificationWindow();
 
-  globalShortcut.register("CommandOrControl+Shift+X", () => {
+  // globalShortcut.register("CommandOrControl+Shift+X", () => {
+  //   if (!isRecording) {
+  //     mainWindow.webContents.send("start-recording");
+  //     isRecording = true;
+  //     console.log("Started recording");
+  //   } else {
+  //     mainWindow.webContents.send("stop-recording");
+  //     isRecording = false;
+  //     console.log("Stopped recording");
+  //   }
+  // });
+
+  globalShortcut.register("CommandOrControl+Shift+P", async () => {
     if (!isRecording) {
+      try {
+        const activeWindow = await activeWin();
+        captureWindow(activeWindow.title);
+        positionNotificationAtTopRight(activeWindow);
+        const windowOwner = activeWindow.owner.name;
+        mainWindow.webContents.send(
+          "add-window-name-to-app",
+          `${windowOwner}: ${activeWindow.title}`
+        );
+        notificationWindow.webContents.send(
+          "add-window-name-to-app",
+          `${windowOwner}: ${activeWindow.title}`
+        );
+      } catch (error) {
+        console.error("Error capturing the active window:", error);
+      }
       mainWindow.webContents.send("start-recording");
+      notificationWindow.webContents.send("start-recording");
       isRecording = true;
       console.log("Started recording");
     } else {
       mainWindow.webContents.send("stop-recording");
+      notificationWindow.webContents.send("stop-recording");
       isRecording = false;
       console.log("Stopped recording");
     }
@@ -354,3 +448,14 @@ ipcMain.handle("get-windows", async () => {
 // mainWindow.on("closed", () => {
 //   mainWindow = null;
 // });
+
+ipcMain.on("update-analysis-content", (event, content) => {
+  // Forward the content to the notification window
+  if (notificationWindow) {
+    notificationWindow.webContents.send("update-analysis-content", content);
+  }
+});
+
+ipcMain.on("lock-position-toggle", (event, isLocked) => {
+  isPositionLocked = isLocked;
+});

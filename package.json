@@ -4,6 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "active-win": "^8.1.1",
     "buffer": "^6.0.3",
     "electron": "^27.1.2",
     "ffmpeg-static": "^5.2.0",
