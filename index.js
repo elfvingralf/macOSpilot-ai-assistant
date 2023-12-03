@@ -18,39 +18,52 @@ const FormData = require("form-data");
 const { exec } = require("child_process");
 const activeWin = require("active-win");
 
+dotenv.config();
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
-let mainWindow;
-let notificationWindow;
+// // //  SET CONFIGS AND PLACEHOLDER VARIABLES // // //
 
-dotenv.config();
 const openAiApiKey = process.env.OPENAI_API_KEY;
-
 const openai = new OpenAI({
   apiKey: openAiApiKey,
 });
-// Function to create the main window
+
+const keyboardShortcut = "CommandOrControl+Shift+'";
+
+const notificationWidth = 300; // Width of notification window
+const notificationHeight = 100; // Height of notification window
+const notificationOpacity = 0.8; // Opacity of notification window
+const mainWindowWidth = 600; // Width of main window
+const mainWindowHeight = 400; // Height of main window
+
+let isRecording = false;
+let mainWindow;
+let notificationWindow;
+
+let conversationHistory = [
+  {
+    role: "system",
+    content:
+      "You are helping users with questions about their OSX applications based on screenshots, always answer in at most one sentence.",
+  },
+];
+
+// // // // // // // // // // // // // // // // // // // // //
+
+// Create main Electron window
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
+    width: mainWindowWidth,
+    height: mainWindowHeight,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
-
-  // Load your window selection HTML page
   mainWindow.loadFile("index.html");
-
-  // Open the DevTools for debugging (optional)
-  // mainWindow.webContents.openDevTools();
 }
 
-const notificationWidth = 300; // Width of your notification window
-const notificationHeight = 100; // Height of your notification window
-let isPositionLocked = false;
-
+// Create "always on top" Electron notification window
 function createNotificationWindow() {
   notificationWindow = new BrowserWindow({
     width: notificationWidth,
@@ -66,27 +79,15 @@ function createNotificationWindow() {
     x: 100,
     y: 100,
   });
-  notificationWindow.setOpacity(0.8);
-
-  notificationWindow.loadFile("notifications.html"); // Load your custom HTML content
+  notificationWindow.setOpacity(notificationOpacity);
+  notificationWindow.loadFile("notifications.html");
 }
 
-// app.whenReady().then(createNotificationWindow);
-
-let conversationHistory = [
-  {
-    role: "system",
-    content:
-      "You are helping users with questions about their OSX applications based on screenshots, always answer in at most one sentence.",
-  },
-];
-
+// Function to re-position "always on top" notification window when a new active window is used
 function positionNotificationAtTopRight(selectedWindow) {
   if (isPositionLocked) {
     return; // Do not reposition if locked
   }
-  const notificationWidth = 300; // Width of your notification window
-  const notificationHeight = 100; // Height of your notification window
 
   // Calculate top-right position
   const topRightX =
@@ -98,11 +99,13 @@ function positionNotificationAtTopRight(selectedWindow) {
   const safeY = Math.max(topRightY, 0);
 
   // Set the position of the notification window
+  // Currently set to 15px in form the right-hand corner of the active window
   if (notificationWindow) {
     notificationWindow.setPosition(safeX - 15, safeY + 15);
   }
 }
 
+// Recorded audio gets passed to this function when the microphone recording has stopped
 ipcMain.on("audio-buffer", (event, buffer) => {
   const audioDir = path.join(__dirname, "audio");
 
@@ -111,7 +114,7 @@ ipcMain.on("audio-buffer", (event, buffer) => {
     fs.mkdirSync(audioDir, { recursive: true });
   }
 
-  const tempFilePath = path.join(audioDir, "temp_audio.raw"); // Temporary file
+  const tempFilePath = path.join(audioDir, "temp_audio.raw");
   const mp3FilePath = path.join(audioDir, "recording.mp3");
 
   // Save buffer to the temporary file
@@ -131,33 +134,27 @@ ipcMain.on("audio-buffer", (event, buffer) => {
           console.error("Error converting to MP3:", err);
         })
         .on("end", async () => {
-          console.log("Conversion to MP3 finished:", mp3FilePath);
-
-          // Optionally, delete the temporary file after conversion
           fs.unlink(tempFilePath, (err) => {
             if (err) console.error("Failed to delete temporary file:", err);
           });
-          console.log("Inside the end");
-          // Call the function to send the audio file to OpenAI
-          const audioInput = await sendAudioToOpenAI(mp3FilePath);
-
+          // Send user audio recording to OpenAI Whisper API for transcription
+          const audioInput = await transcribeUserRecording(mp3FilePath);
           const screenshotsDir = path.join(__dirname, "screenshots");
           const filePath = path.join(screenshotsDir, "screenshot.png");
-          const screenshotAnalysis = await processScreenshot(
-            filePath,
-            audioInput
-          );
+
+          // Call Vision API with screenshot and transcription of question
+          const visionApiResponse = await callVisionAPI(filePath, audioInput);
+
+          // Update both windows with the
           mainWindow.webContents.send(
-            "screenshot-analysis",
-            screenshotAnalysis
+            "push-vision-response-to-windows",
+            visionApiResponse
           );
           notificationWindow.webContents.send(
-            "screenshot-analysis",
-            screenshotAnalysis
+            "push-vision-response-to-windows",
+            visionApiResponse
           );
-          const testing = await playScreenshotAnalysisResponse(
-            screenshotAnalysis
-          );
+          await playVisionApiResponse(visionApiResponse);
         })
         .save(mp3FilePath);
     } catch (error) {
@@ -166,9 +163,9 @@ ipcMain.on("audio-buffer", (event, buffer) => {
   });
 });
 
-async function playScreenshotAnalysisResponse(inputText) {
+async function playVisionApiResponse(inputText) {
   const url = "https://api.openai.com/v1/audio/speech";
-  const voice = "echo";
+  const voice = "echo"; // you can change voice if you want
   const model = "tts-1";
   const headers = {
     Authorization: `Bearer ${openAiApiKey}`, // API key for authentication
@@ -182,7 +179,6 @@ async function playScreenshotAnalysisResponse(inputText) {
   };
 
   try {
-    // Make a POST request to the OpenAI audio API
     const response = await axios.post(url, data, {
       headers: headers,
       responseType: "stream",
@@ -200,7 +196,6 @@ async function playScreenshotAnalysisResponse(inputText) {
     }).then(() => {
       // Play the audio file using a system command
       let playCommand;
-
       switch (process.platform) {
         case "darwin": // macOS
           playCommand = `afplay ${audioFilePath}`;
@@ -225,7 +220,6 @@ async function playScreenshotAnalysisResponse(inputText) {
       });
     });
   } catch (error) {
-    // Handle errors from the API or the audio processing
     if (error.response) {
       console.error(
         `Error with HTTP request: ${error.response.status} - ${error.response.statusText}`
@@ -236,17 +230,14 @@ async function playScreenshotAnalysisResponse(inputText) {
   }
 }
 
-async function sendAudioToOpenAI(mp3FilePath) {
-  console.log("Trying to transcribe");
-  // let response;
+async function transcribeUserRecording(mp3FilePath) {
   try {
     const form = await new FormData();
-    // form.append("file", fs.createReadStream("./outputTest.mp3"));
+
     form.append("file", fs.createReadStream(mp3FilePath));
     form.append("model", "whisper-1");
-    // form.append("response_format", "srt"); // Ensure response is in SRT format
-    form.append("response_format", "text"); // Ensure response is in text format
-    form.append("prompt", "testing"); // Fix broken words
+    form.append("response_format", "text");
+    // form.append("prompt", "testing"); // Append correction words
     response = await axios.post(
       "https://api.openai.com/v1/audio/transcriptions",
       form,
@@ -263,13 +254,11 @@ async function sendAudioToOpenAI(mp3FilePath) {
     console.error("Error calling OpenAI:", error);
     return null;
   }
-
-  return response.data;
 }
 
-async function processScreenshot(inputScreenshot, audioInput) {
+async function callVisionAPI(inputScreenshot, audioInput) {
   const base64Image = fs.readFileSync(inputScreenshot).toString("base64");
-  const dataUrl = `data:image/png;base64,${base64Image}`; // Assuming the image is a JPEG
+  const dataUrl = `data:image/png;base64,${base64Image}`;
   const userMessage = {
     role: "user",
     content: [
@@ -279,15 +268,13 @@ async function processScreenshot(inputScreenshot, audioInput) {
         image_url: {
           url: dataUrl,
         },
+        // OPTION TO RESIZE
+        //   {
+        //     image: base64Image,
+        //     resize: 1024, // Can be changed, smaller = less quality
+        //   },
       },
     ],
-    // content: [
-    //   { type: "text", text: audioInput },
-    //   {
-    //     image: base64Image,
-    //     resize: 1024, // Include the resize parameter here
-    //   },
-    // ],
   };
 
   conversationHistory.push(userMessage);
@@ -306,32 +293,16 @@ async function processScreenshot(inputScreenshot, audioInput) {
     });
 
     const responseContent = response.choices[0].message.content;
-    // console.log(responseContent);
 
     conversationHistory.push({
       role: "assistant",
       content: responseContent,
     });
-    // responseContent =
-    //   "You have four images in this folder. If you want me to help you with something, let me know.";
+
     return responseContent;
   } catch (error) {
     console.log(error);
   }
-}
-
-function handleShortcut() {
-  console.log("Shortcut pressed!");
-}
-
-// Function to get the list of window sources
-async function getWindows() {
-  const inputSources = await desktopCapturer.getSources({
-    types: ["window"],
-    thumbnailSize: { width: 200, height: 200 },
-  });
-
-  return inputSources;
 }
 
 async function captureWindow(windowName) {
@@ -340,6 +311,7 @@ async function captureWindow(windowName) {
     thumbnailSize: { width: 1920, height: 1080 },
   });
 
+  // Could be updated to use ids
   const selectedSource = sources.find((source) => source.name === windowName);
 
   if (!selectedSource) {
@@ -347,10 +319,8 @@ async function captureWindow(windowName) {
     return;
   }
 
-  // Capture the thumbnail of the window
+  // Capture the thumbnail of the window and define the screenshots directory path
   const screenshot = selectedSource.thumbnail.toPNG();
-
-  // Define the screenshots directory path
   const screenshotsDir = path.join(__dirname, "screenshots");
 
   // Check if the directory exists, if not, create it
@@ -358,34 +328,23 @@ async function captureWindow(windowName) {
     fs.mkdirSync(screenshotsDir);
   }
 
-  // Save the screenshot to a file (you can change the directory and file name as needed)
+  // Save the screenshot to file, note that it is continiously overwritten with every new question
   const filePath = path.join(screenshotsDir, "screenshot.png");
   fs.writeFile(filePath, screenshot, async (err) => {
     if (err) {
       throw err;
     }
-    console.log("Screenshot saved to", filePath);
   });
 }
-let isRecording = false;
-// Electron app ready
+
+// Run when Electron app is ready
 app.whenReady().then(() => {
   createMainWindow();
   createNotificationWindow();
 
-  // globalShortcut.register("CommandOrControl+Shift+X", () => {
-  //   if (!isRecording) {
-  //     mainWindow.webContents.send("start-recording");
-  //     isRecording = true;
-  //     console.log("Started recording");
-  //   } else {
-  //     mainWindow.webContents.send("stop-recording");
-  //     isRecording = false;
-  //     console.log("Stopped recording");
-  //   }
-  // });
-
-  globalShortcut.register("CommandOrControl+Shift+P", async () => {
+  // If defined keyboard shortcut is triggered then run
+  globalShortcut.register(keyboardShortcut, async () => {
+    // If the microphone recording isn't already running
     if (!isRecording) {
       try {
         const activeWindow = await activeWin();
@@ -406,12 +365,13 @@ app.whenReady().then(() => {
       mainWindow.webContents.send("start-recording");
       notificationWindow.webContents.send("start-recording");
       isRecording = true;
-      console.log("Started recording");
+      // console.log("Started recording"); // for debugging
     } else {
+      // If we're already recording, the keyboard shortcut means we should stop
       mainWindow.webContents.send("stop-recording");
       notificationWindow.webContents.send("stop-recording");
       isRecording = false;
-      console.log("Stopped recording");
+      // console.log("Stopped recording"); // for debugging
     }
   });
 
@@ -433,21 +393,6 @@ app.on("will-quit", () => {
   // Unregister all shortcuts when the application is about to quit
   globalShortcut.unregisterAll();
 });
-
-// IPC listener for window selection
-ipcMain.on("select-window", (event, windowName) => {
-  captureWindow(windowName);
-});
-
-// IPC listener to request the list of windows
-ipcMain.handle("get-windows", async () => {
-  return await getWindows();
-});
-
-// Prevent Electron from quitting when the main window is closed
-// mainWindow.on("closed", () => {
-//   mainWindow = null;
-// });
 
 ipcMain.on("update-analysis-content", (event, content) => {
   // Forward the content to the notification window

@@ -19,10 +19,6 @@
         -webkit-app-region: drag;
         cursor: move;
       }
-      h1 {
-        color: #333;
-        font-size: 18px;
-      }
       #analysis {
         color: #333; /* Text color */
         padding: 10px;
@@ -30,91 +26,15 @@
         padding: 5px;
         font-size: 12px;
       }
-      .window-section {
-        background-color: rgba(
-          255,
-          255,
-          255,
-          0.8
-        ); /* Fully opaque white background */
-        border: 0px solid #ddd;
-        margin-bottom: 15px; /* Adds space between each window section */
-        padding: 10px; /* Padding inside each section */
-        border-radius: 5px; /* Optional: adds rounded corners */
-      }
-
-      .window-section h3 {
-        margin-top: 0; /* Removes the default top margin from headings */
-        color: #40005e; /* Optional: Style the title */
-      }
-
       .window-message {
         color: #333; /* Text color for the message */
         padding-top: 2px; /* Space between the title and the message */
-      }
-      .switch {
-        position: relative;
-        display: inline-block;
-        width: 60px;
-        height: 34px;
-      }
-
-      .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-
-      .slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: #ccc;
-        transition: 0.4s;
-      }
-
-      .slider:before {
-        position: absolute;
-        content: "";
-        height: 26px;
-        width: 26px;
-        left: 4px;
-        bottom: 4px;
-        background-color: white;
-        transition: 0.4s;
-      }
-
-      input:checked + .slider {
-        background-color: #2196f3;
-      }
-
-      input:focus + .slider {
-        box-shadow: 0 0 1px #2196f3;
-      }
-
-      input:checked + .slider:before {
-        transform: translateX(26px);
-      }
-
-      .slider.round {
-        border-radius: 34px;
-      }
-
-      .slider.round:before {
-        border-radius: 50%;
       }
     </style>
   </head>
   <body>
     <div class="draggable">
       <div id="analysis" class="draggable"></div>
-      <!-- <label class="switch">
-        <input type="checkbox" id="lockPosition" />
-        <span class="slider round"></span>
-      </label> -->
       <script src="notificationRenderer.js"></script>
     </div>
   </body>

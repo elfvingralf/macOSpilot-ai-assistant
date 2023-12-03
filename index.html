@@ -15,32 +15,6 @@
         color: #333;
         font-size: 18px;
       }
-      #refreshButton {
-        background-color: #007bff;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        margin-bottom: 20px;
-        cursor: pointer;
-        font-size: 14px;
-        border-radius: 5px;
-        margin-top: 20px;
-      }
-      #refreshButton:hover {
-        background-color: #0056b3;
-      }
-      #windowList div {
-        background-color: white;
-        padding: 15px;
-        border-bottom: 1px solid #ddd;
-        transition: background-color 0.3s;
-      }
-      #windowList div:last-child {
-        border-bottom: none;
-      }
-      #windowList div:hover {
-        background-color: #efefef;
-      }
       #analysis {
         margin-top: 20px;
         padding: 15px;
@@ -50,26 +24,22 @@
       .window-section {
         background-color: white;
         border: 1px solid #ddd;
-        margin-bottom: 15px; /* Adds space between each window section */
-        padding: 10px; /* Padding inside each section */
-        border-radius: 5px; /* Optional: adds rounded corners */
+        margin-bottom: 15px;
+        padding: 10px;
+        border-radius: 5px;
       }
 
       .window-section h3 {
-        margin-top: 0; /* Removes the default top margin from headings */
-        color: #40005e; /* Optional: Style the title */
+        margin-top: 0;
+        color: #40005e;
       }
-
       .window-message {
-        color: #333; /* Text color for the message */
-        padding-top: 2px; /* Space between the title and the message */
+        color: #333;
+        padding-top: 2px;
       }
     </style>
   </head>
   <body>
-    <!-- <h1>Select an application then use CMD+SHIFT+X to ask your question</h1>
-    <div id="windowList"></div>
-    <button id="refreshButton">Refresh Windows</button> -->
     <div id="analysis"></div>
     <script src="renderer.js"></script>
   </body>
