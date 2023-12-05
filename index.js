@@ -285,6 +285,15 @@ async function transcribeUserRecording(mp3FilePath) {
       }
     );
     console.log(response.data);
+
+    // Adding user's quesiton to windows to give sense of progress
+    notificationWindow.webContents.send(
+      "push-transcription-to-windows",
+      response.data
+    );
+
+    mainWindow.webContents.send("push-transcription-to-windows", response.data);
+
     return response.data;
   } catch (error) {
     console.error("Error calling OpenAI:", error);

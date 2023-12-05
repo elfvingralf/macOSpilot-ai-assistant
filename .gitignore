@@ -2,3 +2,4 @@ node_modules/
 audio/
 screenshots/
 .env
+.DS_Store

@@ -10,6 +10,10 @@ ipcRenderer.on("push-vision-response-to-windows", (event, visionResponse) => {
   // }
 });
 
+ipcRenderer.on("push-transcription-to-windows", (event, transcriptionData) => {
+  updateWindowMessage(`${transcriptionData} ... thinking...`);
+});
+
 ipcRenderer.on("start-recording", async () => {
   try {
     updateWindowMessage("Recording in progress...");
