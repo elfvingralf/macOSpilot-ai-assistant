@@ -1,11 +1,14 @@
 {
-  "name": "electron-window-screenshot-taker",
+  "name": "macospilot-ai-assistant",
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
     "active-win": "^8.1.1",
+    "axios": "^1.6.2",
     "buffer": "^6.0.3",
+    "dotenv": "^16.3.1",
     "electron": "^27.1.2",
+    "electron-store": "^8.1.0",
     "ffmpeg-static": "^5.2.0",
     "fluent-ffmpeg": "^2.1.2",
     "form-data": "^4.0.0",
@@ -14,6 +17,12 @@
     "path": "^0.12.7"
   },
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "package-win": "electron-packager . --overwrite --asar=true --platform=win32 --arch=x64 --icon=assets/icons/win/icon.ico --prune=true --out=release-builds",
+    "package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/icons/mac/icon.icns --prune=true --out=release-builds",
+    "package-linux": "electron-packager . --overwrite --platform=linux --arch=x64 --icon=assets/icons/png/1024x1024.png --prune=true --out=release-builds"
+  },
+  "devDependencies": {
+    "electron-packager": "^17.1.2"
   }
 }

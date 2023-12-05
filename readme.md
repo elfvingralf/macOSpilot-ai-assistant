@@ -1,22 +1,21 @@
-# cOSXpilot: your personal OSX AI assistant
+# macOSpilot: your personal macOS AI assistant
 
-cOSXpilot uses AI to answer your questions about anything in any application, without you having to reach for another window. Simply use a keyboard shortcut to trigger a screenshot of the active window in OSX, speak your question, and get the answer from GPT Vision in context and in audio within seconds.
+macOSpilot answers your questions about anything, in any application. No need to reach for another window. Simply use a keyboard shortcut to trigger the assistant, speak your question, and it will give the answer in context and in audio within seconds. Behind the scenes macOSpilot takes a screenshot of your active window when triggerd, and sends it to OpenAI GPT Vision along with a transcript of your question. It's answer will be displayed in text, and converted into audio using OpenAI TTS (text to speech).
 
-- **Works with any application in OSX:** cOSXpilot is application agnostic, and simply takes a screenshot of the currently active window.
-- **Trigger with keyboard shortcut, speak your question:** No need to juggle windows, just trigger the recording function with a keyboard shortcut and speak your question.
+- **Works with any application in macOS:** macOSpilot is application agnostic, and simply takes a screenshot of the currently active window when you trigger the assistant.
+- **Trigger with keyboard shortcut, speak your question:** No need to juggle windows, just press the keyboard shortcut and speak your question.
 - **Answers in-context and in audio:** The answer to your question is provided in an small window overlayed on top of your active window, and in audio (using text-to-speech).
 
 ## How it works
 
-1. cOSXpilot runs NodeJS/Electron. Simply install the NodeJS project and dependencies (see below), run `yarn start`, make the necessary configurations, and let the application run in the background.
-2. When you need to use cOSXpilot, press the keyboard shortcut you've configured. cOSXpilot will take a screenshot of your currently active OSX application window and activate the microphone.
+1. macOSpilot runs NodeJS/Electron. Simply install the NodeJS project and dependencies (see below) and make the necessary configurations in `index.js`. Then chose to run `yarn start` from the terminal, or package it with Electron with the instructions below, add your OpenAI API key and let the application run in the background.
+2. When you need to use macOSpilot, press the keyboard shortcut you've configured. macOSpilot will take a screenshot of your currently active macOS application window and activate the microphone.
 3. Speak your question into your microphone and then press the same keyboard shortcut to end the microphone recording.
-4. cOSXpilot will send your question to OpenAI's Whisper API. The transcription will be sent to OpenAI's Vision API along with the screenshot.
-5. The Vision API response will be displayed in a small notification window on top of your active OSX application window, and read outloud once it's been processed by OpenAI's TTS (text to speech) API.
-6. A simply history of answers to your questions in the current session is available in another window that you can hide/minimize.
-7. See instructions below if you want to turn it into a `.app` to run it without the terminal.
+4. macOSpilot will send your question to OpenAI's Whisper API, and the transcription will be sent to OpenAI's Vision API along with the screenshot.
+5. The Vision API response will be displayed in a small notification window on top of your active macOS application window, and read outloud once it's been processed by OpenAI's TTS (text to speech) API.
+6. A simple history of answers to your questions in the current session is available in another window that you can hide/minimize.
 
-The most recent screenshot, audio recording, and TTS response will be stored on your machine for debugging purposes. The same filename is used every time so they will be overwritten, but are not automatically deleted when you close the application.
+The most recent screenshot, audio recording, and TTS response will be stored on your machine in part for debugging purposes. The same filename is used every time so they will be overwritten, but are not automatically deleted when you close or delete the application.
 
 ## Getting Started
 
@@ -26,31 +25,23 @@ Download or clone the repo to your local machine. Make sure you have NodeJS inst
 
 ```bash
 
-git  clone  https://github.com/elfvingralf/cosxpilot-ai-assistant.git
+git  clone  https://github.com/elfvingralf/macOSpilot-ai-assistant.git
 
 ```
 
 Navigate to the folder and run `yarn install` or `npm install` in your folder. This should install all dependencies.
 
-Create a `.env` file in the root directory of this project, add your OpenAI API key, and save.
-
-```???
-
-#.env file
-
-OPENAI_API_KEY="your openai API key"
-
-```
-
 Run `yarn start` or `npm start`. Because the application needs access to read your screen, microphone, read/write files etc, you will need to go through the steps of granting it access and possibly restarting your terminal.
 
 ### Configurations
+
+Make sure to add your OpenAI API key by clicking the settings icon in the top right-hand corner of the main window. (it's not stored encrypted!)
 
 If you want to change the default values here's a few things that might be worth changing, all in `index.js`:
 
 - **Keyboard shortcut:** The default keyboard shortcut `keyboardShortcut` is set to "CommandOrControl+Shift+'" (because it seemed like it was rarely used by other applications)
 
-- **OpenAI Vision prompt:** The OpenAI Vision API system prompt in `conversationHistory`, currently just set to "You are helping users with questions about their OSX applications based on screenshots, always answer in at most one sentence."
+- **OpenAI Vision prompt:** The OpenAI Vision API system prompt in `conversationHistory`, currently just set to "You are helping users with questions about their macOS applications based on screenshots, always answer in at most one sentence."
 
 - **VisionAPI image size:** Image resize params to save some money, I left an example of how in `callVisionAPI()` (I found that I had much poorer results when using it)
 
@@ -63,9 +54,7 @@ If you want to change the default values here's a few things that might be worth
 If you want to create an .app executable instead of running this from your terminal, follow these steps:
 
 ```bash
-
 npm  install  electron-packager  --save-dev
-
 ```
 
 Add these to your package.json:
@@ -76,7 +65,6 @@ Add these to your package.json:
 "package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/icons/mac/icon.icns --prune=true --out=release-builds",
 "package-linux": "electron-packager . --overwrite --platform=linux --arch=x64 --icon=assets/icons/png/1024x1024.png --prune=true --out=release-builds"
 }
-
 ```
 
 Run one of these depending on which platform you're on. Note I have only tested this on Mac (Apple silicon and Intel):
@@ -87,18 +75,20 @@ npm  run  package-win
 npm  run  package-linux
 ```
 
+Go to `/release-builds/` and chose the folder of your platform. In there is an executable, `.app` if you're on Mac. Double-click it to open the app, note that it may take a few seconds the first time so be patient.
+
+Once the app is opened, trigger your keyboard shortcut. You'll be asked to grant Privacy & Security permissions. You may need to repeat this another one or two times for all permissions to work properly.
+
+**NOTE:** I've had consistent issues getting macOS to trigger the Privacy & Security Microphone dialog window for the .app, which means that I can't ask my question. If it works for you, or if you have a work-around to this issue, I'd love to know.
+
 ## Improvements:
 
 Some improvements I'd like to make, in no particular order:
 
 - Enable optional conversation state inbetween questions, and history inbetween sessions.
-
 - Use buffers instead of writing/reading screenshot and audio files to disk
-
 - Make assistant audio configurable in UI (e.g. speed, make playback optional)
-
 - Make always-on-top window configurable in UI (e.g. toggle sticky position, enable/disable)
-
 - Make screenshot settings configurable in UI (e.g. select area, entire screen)
 
 ## About / contact

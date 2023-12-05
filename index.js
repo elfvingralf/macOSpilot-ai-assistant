@@ -14,17 +14,18 @@ const { Blob } = require("buffer");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegStatic = require("ffmpeg-static");
 const FormData = require("form-data");
-// const Speaker = require("speaker");
 const { exec } = require("child_process");
 const activeWin = require("active-win");
+const Store = require("electron-store");
+const store = new Store();
 
 dotenv.config();
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
 // // //  SET CONFIGS AND PLACEHOLDER VARIABLES // // //
 
-const openAiApiKey = process.env.OPENAI_API_KEY;
-const openai = new OpenAI({
+let openAiApiKey = store.get("userApiKey", "");
+let openai = new OpenAI({
   apiKey: openAiApiKey,
 });
 
@@ -84,12 +85,8 @@ function createNotificationWindow() {
 }
 
 // Function to re-position "always on top" notification window when a new active window is used
-function positionNotificationAtTopRight(selectedWindow) {
-  if (isPositionLocked) {
-    return; // Do not reposition if locked
-  }
-
-  // Calculate top-right position
+function repositionNotificationWindow(selectedWindow) {
+  // Calculate top-right position which is what's currently used
   const topRightX =
     selectedWindow.bounds.x + selectedWindow.bounds.width - notificationWidth;
   const topRightY = selectedWindow.bounds.y;
@@ -105,9 +102,42 @@ function positionNotificationAtTopRight(selectedWindow) {
   }
 }
 
+// Manage API key storage/access
+ipcMain.on("submit-api-key", (event, apiKey) => {
+  store.set("userApiKey", apiKey); // Directly saving the API key using electron-store
+});
+
+// Function to mask the API key except for the last 4 characters
+function maskApiKey(apiKey) {
+  if (apiKey.length <= 4) {
+    return apiKey; // If the key is too short, just return it
+  }
+  return "*".repeat(apiKey.length - 4) + apiKey.slice(-4);
+}
+
+// Handle request for API key
+ipcMain.on("request-api-key", (event) => {
+  const apiKey = store.get("userApiKey", ""); // Get the API key
+  const maskedApiKey = maskApiKey(apiKey); // Get the masked version
+  event.reply("send-api-key", maskedApiKey); // Send the masked key
+});
+
+// fetch the key to send to backend logic
+ipcMain.handle("get-api-key", (event) => {
+  return store.get("userApiKey", "");
+});
+
 // Recorded audio gets passed to this function when the microphone recording has stopped
 ipcMain.on("audio-buffer", (event, buffer) => {
-  const audioDir = path.join(__dirname, "audio");
+  const audioDir = path.join(app.getPath("userData"), "audio");
+  // use the option below to debug and store files to /audio/ in your node project when running from the terminal
+  // const audioDir = path.join(__dirname, "audio");
+
+  // Calling this in case the user added
+  openAiApiKey = store.get("userApiKey", "");
+  openai = new OpenAI({
+    apiKey: openAiApiKey,
+  });
 
   // Ensure the 'audio' directory exists
   if (!fs.existsSync(audioDir)) {
@@ -139,7 +169,13 @@ ipcMain.on("audio-buffer", (event, buffer) => {
           });
           // Send user audio recording to OpenAI Whisper API for transcription
           const audioInput = await transcribeUserRecording(mp3FilePath);
-          const screenshotsDir = path.join(__dirname, "screenshots");
+          const screenshotsDir = path.join(
+            app.getPath("userData"),
+            "screenshots"
+          );
+          // Use the option below to debug and store files to /audio/ in your node project when running from the terminal
+          // const screenshotsDir = path.join(__dirname, "screenshots");
+
           const filePath = path.join(screenshotsDir, "screenshot.png");
 
           // Call Vision API with screenshot and transcription of question
@@ -215,7 +251,7 @@ async function playVisionApiResponse(inputText) {
         if (error) {
           console.error("Failed to play audio:", error);
         } else {
-          console.log("Audio playback started");
+          // console.log("Audio playback started");
         }
       });
     });
@@ -237,7 +273,7 @@ async function transcribeUserRecording(mp3FilePath) {
     form.append("file", fs.createReadStream(mp3FilePath));
     form.append("model", "whisper-1");
     form.append("response_format", "text");
-    // form.append("prompt", "testing"); // Append correction words
+    // form.append("prompt", "add", "words", "it", "usually", "gets", "wrong"); // Append correction words if needed
     response = await axios.post(
       "https://api.openai.com/v1/audio/transcriptions",
       form,
@@ -321,11 +357,14 @@ async function captureWindow(windowName) {
 
   // Capture the thumbnail of the window and define the screenshots directory path
   const screenshot = selectedSource.thumbnail.toPNG();
-  const screenshotsDir = path.join(__dirname, "screenshots");
+  const screenshotsDir = path.join(app.getPath("userData"), "screenshots");
+
+  // use the option below to debug and store files to /audio/ in your node project when running from the terminal
+  // const screenshotsDir = path.join(__dirname, "screenshots");
 
   // Check if the directory exists, if not, create it
   if (!fs.existsSync(screenshotsDir)) {
-    fs.mkdirSync(screenshotsDir);
+    fs.mkdirSync(screenshotsDir, { recursive: true });
   }
 
   // Save the screenshot to file, note that it is continiously overwritten with every new question
@@ -336,7 +375,16 @@ async function captureWindow(windowName) {
     }
   });
 }
-
+async function checkMicrophoneAccess() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Access granted
+    return true;
+  } catch (error) {
+    // Access denied or not available
+    return false;
+  }
+}
 // Run when Electron app is ready
 app.whenReady().then(() => {
   createMainWindow();
@@ -349,7 +397,7 @@ app.whenReady().then(() => {
       try {
         const activeWindow = await activeWin();
         captureWindow(activeWindow.title);
-        positionNotificationAtTopRight(activeWindow);
+        repositionNotificationWindow(activeWindow);
         const windowOwner = activeWindow.owner.name;
         mainWindow.webContents.send(
           "add-window-name-to-app",
@@ -399,8 +447,4 @@ ipcMain.on("update-analysis-content", (event, content) => {
   if (notificationWindow) {
     notificationWindow.webContents.send("update-analysis-content", content);
   }
-});
-
-ipcMain.on("lock-position-toggle", (event, isLocked) => {
-  isPositionLocked = isLocked;
 });
