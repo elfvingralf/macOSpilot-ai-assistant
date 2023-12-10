@@ -49,6 +49,20 @@ let conversationHistory = [
   },
 ];
 
+// Set to true if you intend to package the app, otherwise false.
+// This decides what directory/storage strategy to use
+const useElectronPackager = true;
+let tempFilesDir;
+if (useElectronPackager) {
+  tempFilesDir = path.join(app.getPath("userData"), "macOSpilot-temp-files");
+} else {
+  tempFilesDir = path.join(__dirname, "macOSpilot-temp-files");
+}
+
+if (!fs.existsSync(tempFilesDir)) {
+  fs.mkdirSync(tempFilesDir, { recursive: true });
+}
+
 // // // // // // // // // // // // // // // // // // // // //
 
 // Create main Electron window
@@ -129,23 +143,14 @@ ipcMain.handle("get-api-key", (event) => {
 
 // Recorded audio gets passed to this function when the microphone recording has stopped
 ipcMain.on("audio-buffer", (event, buffer) => {
-  const audioDir = path.join(app.getPath("userData"), "audio");
-  // use the option below to debug and store files to /audio/ in your node project when running from the terminal
-  // const audioDir = path.join(__dirname, "audio");
-
   // Calling this in case the user added
   openAiApiKey = store.get("userApiKey", "");
   openai = new OpenAI({
     apiKey: openAiApiKey,
   });
 
-  // Ensure the 'audio' directory exists
-  if (!fs.existsSync(audioDir)) {
-    fs.mkdirSync(audioDir, { recursive: true });
-  }
-
-  const tempFilePath = path.join(audioDir, "temp_audio.raw");
-  const mp3FilePath = path.join(audioDir, "recording.mp3");
+  const tempFilePath = path.join(tempFilesDir, "temp_audio.raw");
+  const mp3FilePath = path.join(tempFilesDir, "recording.mp3");
 
   // Save buffer to the temporary file
   fs.writeFile(tempFilePath, buffer, (err) => {
@@ -169,14 +174,8 @@ ipcMain.on("audio-buffer", (event, buffer) => {
           });
           // Send user audio recording to OpenAI Whisper API for transcription
           const audioInput = await transcribeUserRecording(mp3FilePath);
-          const screenshotsDir = path.join(
-            app.getPath("userData"),
-            "screenshots"
-          );
-          // Use the option below to debug and store files to /audio/ in your node project when running from the terminal
-          // const screenshotsDir = path.join(__dirname, "screenshots");
 
-          const filePath = path.join(screenshotsDir, "screenshot.png");
+          const filePath = path.join(tempFilesDir, "screenshot.png");
 
           // Call Vision API with screenshot and transcription of question
           const visionApiResponse = await callVisionAPI(filePath, audioInput);
@@ -220,7 +219,7 @@ async function playVisionApiResponse(inputText) {
       responseType: "stream",
     });
 
-    const audioFilePath = path.join(__dirname, "audio", "output.mp3");
+    const audioFilePath = path.join(tempFilesDir, "output.mp3");
 
     // Save the response stream to a file
     const writer = fs.createWriteStream(audioFilePath);
@@ -234,13 +233,13 @@ async function playVisionApiResponse(inputText) {
       let playCommand;
       switch (process.platform) {
         case "darwin": // macOS
-          playCommand = `afplay ${audioFilePath}`;
+          playCommand = `afplay "${audioFilePath}"`;
           break;
         case "win32": // Windows
-          playCommand = `start ${audioFilePath}`;
+          playCommand = `start "${audioFilePath}"`;
           break;
         case "linux": // Linux (requires aplay or mpg123 or similar to be installed)
-          playCommand = `aplay ${audioFilePath}`; // or mpg123, etc.
+          playCommand = `aplay "${audioFilePath}"`; // or mpg123, etc.
           break;
         default:
           console.error("Unsupported platform for audio playback");
@@ -366,38 +365,23 @@ async function captureWindow(windowName) {
 
   // Capture the thumbnail of the window and define the screenshots directory path
   const screenshot = selectedSource.thumbnail.toPNG();
-  const screenshotsDir = path.join(app.getPath("userData"), "screenshots");
-
-  // use the option below to debug and store files to /audio/ in your node project when running from the terminal
-  // const screenshotsDir = path.join(__dirname, "screenshots");
-
-  // Check if the directory exists, if not, create it
-  if (!fs.existsSync(screenshotsDir)) {
-    fs.mkdirSync(screenshotsDir, { recursive: true });
-  }
 
   // Save the screenshot to file, note that it is continiously overwritten with every new question
-  const filePath = path.join(screenshotsDir, "screenshot.png");
+  const filePath = path.join(tempFilesDir, "screenshot.png");
   fs.writeFile(filePath, screenshot, async (err) => {
     if (err) {
       throw err;
     }
   });
 }
-async function checkMicrophoneAccess() {
-  try {
-    await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Access granted
-    return true;
-  } catch (error) {
-    // Access denied or not available
-    return false;
-  }
-}
+
 // Run when Electron app is ready
 app.whenReady().then(() => {
   createMainWindow();
   createNotificationWindow();
+
+  // This call initializes MediaRecorder with an 500ms audio recording, to get around an issue seen on some machines where the first user-triggered recording doesn't work.
+  mainWindow.webContents.send("init-mediaRecorder");
 
   // If defined keyboard shortcut is triggered then run
   globalShortcut.register(keyboardShortcut, async () => {
