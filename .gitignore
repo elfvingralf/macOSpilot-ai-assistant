@@ -1,4 +1,4 @@
 node_modules/
-macOSpilot-temp-files
+macOSpilot-temp-files/
 .env
 .DS_Store
