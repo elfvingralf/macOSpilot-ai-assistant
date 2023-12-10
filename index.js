@@ -175,11 +175,15 @@ ipcMain.on("audio-buffer", (event, buffer) => {
           // Send user audio recording to OpenAI Whisper API for transcription
           const audioInput = await transcribeUserRecording(mp3FilePath);
 
-          // Call Vision API with screenshot and transcription of question
-          const visionApiResponse = await callVisionAPI(
-            screenshotFilePath,
-            audioInput
-          );
+          // Set a default response and call the Vision API to overwrite it if we got a transcription of the user recording
+          let visionApiResponse = "There was an error calling OpenAI.";
+          if (audioInput) {
+            // Call Vision API with screenshot and transcription of question
+            visionApiResponse = await callVisionAPI(
+              screenshotFilePath,
+              audioInput
+            );
+          }
 
           // Update both windows with the response text
           mainWindow.webContents.send(
@@ -212,10 +216,8 @@ async function captureWindow(windowName) {
     return "Window not found";
   }
 
-  // Capture the thumbnail of the window and define the screenshots directory path
+  // Capture and save the thumbnail of the window
   const screenshot = selectedSource.thumbnail.toPNG();
-
-  // Save the screenshot to file, note that it is continiously overwritten with every new question
   fs.writeFile(screenshotFilePath, screenshot, async (err) => {
     if (err) {
       throw err;
@@ -255,7 +257,7 @@ async function transcribeUserRecording(mp3FilePath) {
     return response.data;
   } catch (error) {
     console.error("Error calling OpenAI:", error);
-    return null;
+    return false;
   }
 }
 
