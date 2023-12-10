@@ -159,7 +159,7 @@ ipcMain.on("audio-buffer", (event, buffer) => {
       return;
     }
 
-    // Convert the temporary file to MP3
+    // Convert the temporary file to MP3 and send to Vision API
     try {
       ffmpeg(micRecordingFilePath)
         .setFfmpegPath(ffmpegStatic)
@@ -175,7 +175,7 @@ ipcMain.on("audio-buffer", (event, buffer) => {
           // Send user audio recording to OpenAI Whisper API for transcription
           const audioInput = await transcribeUserRecording(mp3FilePath);
 
-          // Set a default response and call the Vision API to overwrite it if we got a transcription of the user recording
+          // Set a default response and call the Vision API to overwrite it if we have a transcription of the user recording
           let visionApiResponse = "There was an error calling OpenAI.";
           if (audioInput) {
             // Call Vision API with screenshot and transcription of question
@@ -194,6 +194,8 @@ ipcMain.on("audio-buffer", (event, buffer) => {
             "push-vision-response-to-windows",
             visionApiResponse
           );
+
+          // Call function to generate and playback audio of the Vision API response
           await playVisionApiResponse(visionApiResponse);
         })
         .save(mp3FilePath);
@@ -203,6 +205,7 @@ ipcMain.on("audio-buffer", (event, buffer) => {
   });
 });
 
+// Capture a screenshot of the selected window, and save it to disk
 async function captureWindow(windowName) {
   const sources = await desktopCapturer.getSources({
     types: ["window"],
@@ -226,6 +229,7 @@ async function captureWindow(windowName) {
   return "Window found";
 }
 
+// Function to send audio file of user recording and return a transcription
 async function transcribeUserRecording(mp3FilePath) {
   try {
     const form = await new FormData();
@@ -261,6 +265,7 @@ async function transcribeUserRecording(mp3FilePath) {
   }
 }
 
+// Function to call the Vision API with the screenshot and transcription of the user question
 async function callVisionAPI(inputScreenshot, audioInput) {
   const base64Image = fs.readFileSync(inputScreenshot).toString("base64");
   const dataUrl = `data:image/png;base64,${base64Image}`;
@@ -304,6 +309,7 @@ async function callVisionAPI(inputScreenshot, audioInput) {
   }
 }
 
+// Function that takes text input, calls TTS API, and plays back the response audio
 async function playVisionApiResponse(inputText) {
   const url = "https://api.openai.com/v1/audio/speech";
   const voice = "echo"; // you can change voice if you want
