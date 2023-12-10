@@ -50,9 +50,9 @@ let conversationHistory = [
 ];
 
 // Set to true if you intend to package the app, otherwise false.
-// This decides what directory/storage strategy to use
-const useElectronPackager = true;
+const useElectronPackager = false;
 let tempFilesDir;
+// This decides what directory/storage strategy to use (local project or application folder)
 if (useElectronPackager) {
   tempFilesDir = path.join(app.getPath("userData"), "macOSpilot-temp-files");
 } else {
@@ -62,6 +62,11 @@ if (useElectronPackager) {
 if (!fs.existsSync(tempFilesDir)) {
   fs.mkdirSync(tempFilesDir, { recursive: true });
 }
+
+const micRecordingFilePath = path.join(tempFilesDir, "macOSpilotMicAudio.raw");
+const mp3FilePath = path.join(tempFilesDir, "macOSpilotAudioInput.mp3");
+const screenshotFilePath = path.join(tempFilesDir, "macOSpilotScreenshot.png");
+const audioFilePath = path.join(tempFilesDir, "macOSpilotTtsResponse.mp3");
 
 // // // // // // // // // // // // // // // // // // // // //
 
@@ -149,11 +154,8 @@ ipcMain.on("audio-buffer", (event, buffer) => {
     apiKey: openAiApiKey,
   });
 
-  const tempFilePath = path.join(tempFilesDir, "temp_audio.raw");
-  const mp3FilePath = path.join(tempFilesDir, "recording.mp3");
-
   // Save buffer to the temporary file
-  fs.writeFile(tempFilePath, buffer, (err) => {
+  fs.writeFile(micRecordingFilePath, buffer, (err) => {
     if (err) {
       console.error("Failed to save temporary audio file:", err);
       return;
@@ -161,7 +163,7 @@ ipcMain.on("audio-buffer", (event, buffer) => {
 
     // Convert the temporary file to MP3
     try {
-      ffmpeg(tempFilePath)
+      ffmpeg(micRecordingFilePath)
         .setFfmpegPath(ffmpegStatic)
         .audioBitrate(32)
         .toFormat("mp3")
@@ -169,16 +171,17 @@ ipcMain.on("audio-buffer", (event, buffer) => {
           console.error("Error converting to MP3:", err);
         })
         .on("end", async () => {
-          fs.unlink(tempFilePath, (err) => {
+          fs.unlink(micRecordingFilePath, (err) => {
             if (err) console.error("Failed to delete temporary file:", err);
           });
           // Send user audio recording to OpenAI Whisper API for transcription
           const audioInput = await transcribeUserRecording(mp3FilePath);
 
-          const filePath = path.join(tempFilesDir, "screenshot.png");
-
           // Call Vision API with screenshot and transcription of question
-          const visionApiResponse = await callVisionAPI(filePath, audioInput);
+          const visionApiResponse = await callVisionAPI(
+            screenshotFilePath,
+            audioInput
+          );
 
           // Update both windows with the
           mainWindow.webContents.send(
@@ -198,71 +201,29 @@ ipcMain.on("audio-buffer", (event, buffer) => {
   });
 });
 
-async function playVisionApiResponse(inputText) {
-  const url = "https://api.openai.com/v1/audio/speech";
-  const voice = "echo"; // you can change voice if you want
-  const model = "tts-1";
-  const headers = {
-    Authorization: `Bearer ${openAiApiKey}`, // API key for authentication
-  };
+async function captureWindow(windowName) {
+  const sources = await desktopCapturer.getSources({
+    types: ["window"],
+    thumbnailSize: { width: 1920, height: 1080 },
+  });
 
-  const data = {
-    model: model,
-    input: inputText,
-    voice: voice,
-    response_format: "mp3",
-  };
+  // Could be updated to use ids
+  const selectedSource = sources.find((source) => source.name === windowName);
 
-  try {
-    const response = await axios.post(url, data, {
-      headers: headers,
-      responseType: "stream",
-    });
-
-    const audioFilePath = path.join(tempFilesDir, "output.mp3");
-
-    // Save the response stream to a file
-    const writer = fs.createWriteStream(audioFilePath);
-    response.data.pipe(writer);
-
-    return new Promise((resolve, reject) => {
-      writer.on("finish", resolve);
-      writer.on("error", reject);
-    }).then(() => {
-      // Play the audio file using a system command
-      let playCommand;
-      switch (process.platform) {
-        case "darwin": // macOS
-          playCommand = `afplay "${audioFilePath}"`;
-          break;
-        case "win32": // Windows
-          playCommand = `start "${audioFilePath}"`;
-          break;
-        case "linux": // Linux (requires aplay or mpg123 or similar to be installed)
-          playCommand = `aplay "${audioFilePath}"`; // or mpg123, etc.
-          break;
-        default:
-          console.error("Unsupported platform for audio playback");
-          return;
-      }
-
-      exec(playCommand, (error) => {
-        if (error) {
-          console.error("Failed to play audio:", error);
-        } else {
-          // console.log("Audio playback started");
-        }
-      });
-    });
-  } catch (error) {
-    if (error.response) {
-      console.error(
-        `Error with HTTP request: ${error.response.status} - ${error.response.statusText}`
-      );
-    } else {
-      console.error(`Error in streamedAudio: ${error.message}`);
-    }
+  if (!selectedSource) {
+    console.error("Window not found:", windowName);
+    return;
   }
+
+  // Capture the thumbnail of the window and define the screenshots directory path
+  const screenshot = selectedSource.thumbnail.toPNG();
+
+  // Save the screenshot to file, note that it is continiously overwritten with every new question
+  fs.writeFile(screenshotFilePath, screenshot, async (err) => {
+    if (err) {
+      throw err;
+    }
+  });
 }
 
 async function transcribeUserRecording(mp3FilePath) {
@@ -349,30 +310,69 @@ async function callVisionAPI(inputScreenshot, audioInput) {
   }
 }
 
-async function captureWindow(windowName) {
-  const sources = await desktopCapturer.getSources({
-    types: ["window"],
-    thumbnailSize: { width: 1920, height: 1080 },
-  });
+async function playVisionApiResponse(inputText) {
+  const url = "https://api.openai.com/v1/audio/speech";
+  const voice = "echo"; // you can change voice if you want
+  const model = "tts-1";
+  const headers = {
+    Authorization: `Bearer ${openAiApiKey}`, // API key for authentication
+  };
 
-  // Could be updated to use ids
-  const selectedSource = sources.find((source) => source.name === windowName);
+  const data = {
+    model: model,
+    input: inputText,
+    voice: voice,
+    response_format: "mp3",
+  };
 
-  if (!selectedSource) {
-    console.error("Window not found:", windowName);
-    return;
-  }
+  try {
+    const response = await axios.post(url, data, {
+      headers: headers,
+      responseType: "stream",
+    });
 
-  // Capture the thumbnail of the window and define the screenshots directory path
-  const screenshot = selectedSource.thumbnail.toPNG();
+    // Save the response stream to a file
+    const writer = fs.createWriteStream(audioFilePath);
+    response.data.pipe(writer);
 
-  // Save the screenshot to file, note that it is continiously overwritten with every new question
-  const filePath = path.join(tempFilesDir, "screenshot.png");
-  fs.writeFile(filePath, screenshot, async (err) => {
-    if (err) {
-      throw err;
+    return new Promise((resolve, reject) => {
+      writer.on("finish", resolve);
+      writer.on("error", reject);
+    }).then(() => {
+      // Play the audio file using a system command
+      let playCommand;
+      switch (process.platform) {
+        case "darwin": // macOS
+          playCommand = `afplay "${audioFilePath}"`;
+          break;
+        case "win32": // Windows
+          playCommand = `start "${audioFilePath}"`;
+          break;
+        case "linux": // Linux (requires aplay or mpg123 or similar to be installed)
+          playCommand = `aplay "${audioFilePath}"`; // or mpg123, etc.
+          break;
+        default:
+          console.error("Unsupported platform for audio playback");
+          return;
+      }
+
+      exec(playCommand, (error) => {
+        if (error) {
+          console.error("Failed to play audio:", error);
+        } else {
+          // console.log("Audio playback started");
+        }
+      });
+    });
+  } catch (error) {
+    if (error.response) {
+      console.error(
+        `Error with HTTP request: ${error.response.status} - ${error.response.statusText}`
+      );
+    } else {
+      console.error(`Error in streamedAudio: ${error.message}`);
     }
-  });
+  }
 }
 
 // Run when Electron app is ready
