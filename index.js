@@ -8,7 +8,6 @@ const {
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-const dotenv = require("dotenv");
 const OpenAI = require("openai");
 const { Blob } = require("buffer");
 const ffmpeg = require("fluent-ffmpeg");
@@ -17,9 +16,8 @@ const FormData = require("form-data");
 const { exec } = require("child_process");
 const activeWin = require("active-win");
 const Store = require("electron-store");
-const store = new Store();
 
-dotenv.config();
+const store = new Store();
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
 // // //  SET CONFIGS AND PLACEHOLDER VARIABLES // // //
@@ -29,7 +27,7 @@ let openai = new OpenAI({
   apiKey: openAiApiKey,
 });
 
-const keyboardShortcut = "CommandOrControl+Shift+'";
+const keyboardShortcut = "CommandOrControl+Shift+'"; // This is the keyboard shortcut that triggers the app
 
 const notificationWidth = 300; // Width of notification window
 const notificationHeight = 100; // Height of notification window
@@ -183,7 +181,7 @@ ipcMain.on("audio-buffer", (event, buffer) => {
             audioInput
           );
 
-          // Update both windows with the
+          // Update both windows with the response text
           mainWindow.webContents.send(
             "push-vision-response-to-windows",
             visionApiResponse
@@ -206,13 +204,12 @@ async function captureWindow(windowName) {
     types: ["window"],
     thumbnailSize: { width: 1920, height: 1080 },
   });
-
-  // Could be updated to use ids
+  // Not been able to use window IDs successfully, so have to rely on names
   const selectedSource = sources.find((source) => source.name === windowName);
 
   if (!selectedSource) {
     console.error("Window not found:", windowName);
-    return;
+    return "Window not found";
   }
 
   // Capture the thumbnail of the window and define the screenshots directory path
@@ -224,6 +221,7 @@ async function captureWindow(windowName) {
       throw err;
     }
   });
+  return "Window found";
 }
 
 async function transcribeUserRecording(mp3FilePath) {
@@ -283,12 +281,6 @@ async function callVisionAPI(inputScreenshot, audioInput) {
   };
 
   conversationHistory.push(userMessage);
-
-  const params = {
-    max_tokens: 850,
-    model: "gpt-4-vision-preview",
-    messages: conversationHistory,
-  };
 
   try {
     const response = await openai.chat.completions.create({
@@ -360,7 +352,6 @@ async function playVisionApiResponse(inputText) {
         if (error) {
           console.error("Failed to play audio:", error);
         } else {
-          // console.log("Audio playback started");
         }
       });
     });
@@ -389,16 +380,29 @@ app.whenReady().then(() => {
     if (!isRecording) {
       try {
         const activeWindow = await activeWin();
-        captureWindow(activeWindow.title);
+        captureWindowStatus = await captureWindow(activeWindow.title);
         repositionNotificationWindow(activeWindow);
-        const windowOwner = activeWindow.owner.name;
-        mainWindow.webContents.send(
-          "add-window-name-to-app",
-          `${windowOwner}: ${activeWindow.title}`
-        );
+
+        // If captureWindow() can't find the selected window, show an error and exit the process
+        if (captureWindowStatus != "Window found") {
+          const responseMessage = "Unable to capture this window, try another.";
+          mainWindow.webContents.send(
+            "add-window-name-to-app",
+            responseMessage
+          );
+          notificationWindow.webContents.send(
+            "add-window-name-to-app",
+            responseMessage
+          );
+          return;
+        }
+
+        // If window is found, continue as expected
+        const responseMessage = `${activeWindow.owner.name}: ${activeWindow.title}`;
+        mainWindow.webContents.send("add-window-name-to-app", responseMessage);
         notificationWindow.webContents.send(
           "add-window-name-to-app",
-          `${windowOwner}: ${activeWindow.title}`
+          responseMessage
         );
       } catch (error) {
         console.error("Error capturing the active window:", error);
@@ -406,13 +410,11 @@ app.whenReady().then(() => {
       mainWindow.webContents.send("start-recording");
       notificationWindow.webContents.send("start-recording");
       isRecording = true;
-      // console.log("Started recording"); // for debugging
     } else {
       // If we're already recording, the keyboard shortcut means we should stop
       mainWindow.webContents.send("stop-recording");
       notificationWindow.webContents.send("stop-recording");
       isRecording = false;
-      // console.log("Stopped recording"); // for debugging
     }
   });
 
