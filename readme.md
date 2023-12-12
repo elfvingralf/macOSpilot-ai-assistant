@@ -11,7 +11,7 @@ https://github.com/elfvingralf/macOSpilot-ai-assistant/assets/94417497/5a9e9288-
 ## How it works
 
 1. macOSpilot runs NodeJS/Electron. Simply install the NodeJS project and dependencies (see below) and make the necessary configurations in `index.js`. Then chose to run `yarn start` from the terminal, or package it with Electron with the instructions below, add your OpenAI API key and let the application run in the background.
-2. When you need to use macOSpilot, press the keyboard shortcut you've configured. macOSpilot will take a screenshot of your currently active macOS application window and activate the microphone.
+2. When you need to use macOSpilot, press the keyboard shortcut you've configured (default is Command+Shift+'). macOSpilot will take a screenshot of your currently active macOS application window and activate the microphone.
 3. Speak your question into your microphone and then press the same keyboard shortcut to end the microphone recording.
 4. macOSpilot will send your question to OpenAI's Whisper API, and the transcription will be sent to OpenAI's Vision API along with the screenshot.
 5. The Vision API response will be displayed in a small notification window on top of your active macOS application window, and read outloud once it's been processed by OpenAI's TTS (text to speech) API.
@@ -21,9 +21,15 @@ The most recent screenshot, audio recording, and TTS response will be stored on 
 
 ## Getting Started
 
-Download or clone the repo to your local machine. Make sure you have NodeJS installed. run `yarn install`
+### Video walk-through 
+Prefer a video? Head on over to YouTube to watch the walk through of how to get started, how the application works, and a brief explanation of how it works under the hood. 
+
+[![YouTube walk-through and tutorial](https://github.com/elfvingralf/macOSpilot-ai-assistant/assets/94417497/abacea02-0020-4d22-8b80-439a07770b96)](https://www.youtube.com/watch?v=1IdCWqTZLyA)
+
+
 
 ### Install
+Make sure you have NodeJS installed on your machine. Then clone the repo and follow the steps below.
 
 ```bash
 
@@ -53,45 +59,35 @@ If you want to change the default values here's a few things that might be worth
 
 ### Turn it into an .app with Electron
 
-If you want to create an .app executable instead of running this from your terminal, follow these steps:
+Want to create an .app executable instead of running this from your terminal? 
 
-```bash
-npm  install  electron-packager  --save-dev
-```
+First go to `index.js` and change `const useElectronPackager` from `false` to `true`.
 
-Add these to your package.json:
-
-```
-"scripts": {
-"package-win": "electron-packager . --overwrite --asar=true --platform=win32 --arch=x64 --icon=assets/icons/win/icon.ico --prune=true --out=release-builds",
-"package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/icons/mac/icon.icns --prune=true --out=release-builds",
-"package-linux": "electron-packager . --overwrite --platform=linux --arch=x64 --icon=assets/icons/png/1024x1024.png --prune=true --out=release-builds"
-}
-```
-
-Run one of these depending on which platform you're on. Note I have only tested this on Mac (Apple silicon and Intel):
+Run one of these in your terminal, depending on which platform you're on. 
 
 ```bash
 npm  run  package-mac
 npm  run  package-win
 npm  run  package-linux
 ```
+Note I have only tested this on Mac (Apple silicon and Intel).
 
-Go to `/release-builds/` and chose the folder of your platform. In there is an executable, `.app` if you're on Mac. Double-click it to open the app, note that it may take a few seconds the first time so be patient.
+Go to `/release-builds/` in your project folder, and chose the folder of your platform. In there is an executable, `.app` if you're on Mac. Double-click it to open the app, note that it may take a few seconds the first time so be patient. 
 
-Once the app is opened, trigger your keyboard shortcut. You'll be asked to grant Privacy & Security permissions. You may need to repeat this another one or two times for all permissions to work properly.
+Once the app is opened, trigger your keyboard shortcut. You'll be asked to grant Privacy & Security permissions. You may need to repeat this another one or two times for all permissions to work properly, and to restart the app. 
 
-**NOTE:** I've had consistent issues getting macOS to trigger the Privacy & Security Microphone dialog window for the .app, which means that I can't ask my question. If it works for you, or if you have a work-around to this issue, I'd love to know.
+**NOTE:** I've had consistent issues getting macOS to trigger the Privacy & Security Microphone dialog window for the .app, which means that I can't ask my question. If it works for you, or if you have a work-around to this issue, I'd love to know. 
 
 ## Improvements:
 
 Some improvements I'd like to make, in no particular order:
 
-- Enable optional conversation state inbetween questions, and history inbetween sessions.
+- Enable optional conversation state inbetween sessions (open/close application)
 - Use buffers instead of writing/reading screenshot and audio files to disk
 - Make assistant audio configurable in UI (e.g. speed, make playback optional)
 - Make always-on-top window configurable in UI (e.g. toggle sticky position, enable/disable)
 - Make screenshot settings configurable in UI (e.g. select area, entire screen)
+- Fix microphone issue not working as .app 
 
 ## About / contact
 
