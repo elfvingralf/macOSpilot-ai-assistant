@@ -24,7 +24,7 @@ The most recent screenshot, audio recording, and TTS response will be stored on 
 ### Video walk-through 
 Prefer a video? Head on over to YouTube to watch the walk through of how to get started, how the application works, and a brief explanation of how it works under the hood. 
 
-[![YouTube walk-through and tutorial](https://github.com/elfvingralf/macOSpilot-ai-assistant/assets/94417497/abacea02-0020-4d22-8b80-439a07770b96)](https://www.youtube.com/watch?v=1IdCWqTZLyA)
+[![YouTube walk-through and tutorial](https://github.com/elfvingralf/macOSpilot-ai-assistant/assets/94417497/e96e314f-6778-42e5-8a9b-04ce9e6fc0b9)](https://www.youtube.com/watch?v=1IdCWqTZLyA)
 
 
 
