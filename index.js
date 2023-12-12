@@ -4,6 +4,7 @@ const {
   ipcMain,
   desktopCapturer,
   globalShortcut,
+  systemPreferences,
 } = require("electron");
 const fs = require("fs");
 const path = require("path");
@@ -378,6 +379,17 @@ async function playVisionApiResponse(inputText) {
 app.whenReady().then(() => {
   createMainWindow();
   createNotificationWindow();
+
+  // Request microphone access
+  systemPreferences.askForMediaAccess('microphone').then(accessGranted => {
+    if (accessGranted) {
+      console.log('Microphone access granted');
+    } else {
+      console.log('Microphone access denied');
+    }
+  }).catch(err => {
+    console.error('Error requesting microphone access:', err);
+  });
 
   // This call initializes MediaRecorder with an 500ms audio recording, to get around an issue seen on some machines where the first user-triggered recording doesn't work.
   mainWindow.webContents.send("init-mediaRecorder");
