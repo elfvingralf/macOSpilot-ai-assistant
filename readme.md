@@ -76,8 +76,6 @@ Go to `/release-builds/` in your project folder, and chose the folder of your pl
 
 Once the app is opened, trigger your keyboard shortcut. You'll be asked to grant Privacy & Security permissions. You may need to repeat this another one or two times for all permissions to work properly, and to restart the app. 
 
-**NOTE:** I've had consistent issues getting macOS to trigger the Privacy & Security Microphone dialog window for the .app, which means that I can't ask my question. If it works for you, or if you have a work-around to this issue, I'd love to know. 
-
 ## Improvements:
 
 Some improvements I'd like to make, in no particular order:
@@ -87,7 +85,7 @@ Some improvements I'd like to make, in no particular order:
 - Make assistant audio configurable in UI (e.g. speed, make playback optional)
 - Make always-on-top window configurable in UI (e.g. toggle sticky position, enable/disable)
 - Make screenshot settings configurable in UI (e.g. select area, entire screen)
-- Fix microphone issue not working as .app 
+- ~Fix microphone issue not working as .app~ Fixed thanks to [@claar](https://www.github.com/claar). 
 
 ## About / contact
 
