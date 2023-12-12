@@ -232,7 +232,7 @@ async function captureWindow(windowName) {
 // Function to send audio file of user recording and return a transcription
 async function transcribeUserRecording(mp3FilePath) {
   try {
-    const form = await new FormData();
+    const form = new FormData();
 
     form.append("file", fs.createReadStream(mp3FilePath));
     form.append("model", "whisper-1");
