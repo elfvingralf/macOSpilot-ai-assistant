@@ -1,6 +1,6 @@
 # macOSpilot: your personal macOS AI assistant
 
-macOSpilot answers your questions about anything, in any application. No need to reach for another window. Simply use a keyboard shortcut to trigger the assistant, speak your question, and it will give the answer in context and in audio within seconds. Behind the scenes macOSpilot takes a screenshot of your active window when triggerd, and sends it to OpenAI GPT Vision along with a transcript of your question. It's answer will be displayed in text, and converted into audio using OpenAI TTS (text to speech).
+macOSpilot answers your questions about anything, in any application. No need to reach for another window. Simply use a keyboard shortcut to trigger the assistant, speak your question, and it will give the answer in context and in audio within seconds. Behind the scenes macOSpilot takes a screenshot of your active window when triggered, and sends it to OpenAI GPT Vision along with a transcript of your question. It's answer will be displayed in text, and converted into audio using OpenAI TTS (text to speech).
 
 https://github.com/elfvingralf/macOSpilot-ai-assistant/assets/94417497/5a9e9288-0479-4def-9a87-451dddd783af
 
