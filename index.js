@@ -237,33 +237,22 @@ ipcMain.on("audio-buffer", (event, buffer) => {
             if (err) console.error("Failed to delete temporary file:", err);
           });
           // Send user audio recording to OpenAI Whisper API for transcription
-          const audioInput = await transcribeUserRecording(mp3FilePath);
-
-          // Set a default response and call the Vision API to overwrite it if we have a transcription of the user recording
-          let visionApiResponse = "There was an error calling OpenAI.";
-
-          if (audioInput) {
-            // Call Vision API with screenshot and transcription of question
-            //   visionApiResponse = await callVisionAPI(
-            //     screenshotFilePath,
-            //     audioInput
-            //   );
-            // }
-
-            // // Update both windows with the response text
-            // mainWindow.webContents.send(
-            //   "push-vision-response-to-windows",
-            //   visionApiResponse
-            // );
-            // notificationWindow.webContents.send(
-            //   "push-vision-response-to-windows",
-            //   visionApiResponse
-            // );
-
-            // // Call function to generate and playback audio of the Vision API response
-            // await playVisionApiResponse(visionApiResponse);
-
-            processInputs(screenshotFilePath, audioInput);
+          const transcribedText = await transcribeUserRecording(mp3FilePath);
+          // Call OpenAI Vision API with transcribed text
+          if (transcribedText) {
+            processInputs(screenshotFilePath, transcribedText);
+          }
+          // Show error message if the transcrition failled.
+          else {
+            // Future improvement: refactor this to use general call instead of "push-vision-response-to-windows",
+            mainWindow.webContents.send(
+              "push-vision-response-to-windows",
+              "There was an error transcribing your recording"
+            );
+            notificationWindow.webContents.send(
+              "push-vision-response-to-windows",
+              "There was an error transcribing your recording"
+            );
           }
         })
         .save(mp3FilePath);
@@ -274,9 +263,18 @@ ipcMain.on("audio-buffer", (event, buffer) => {
 });
 
 async function processInputs(screenshotFilePath, questionInput) {
-  visionApiResponse = await callVisionAPI(screenshotFilePath, questionInput);
+  // Set a default response and call the Vision API to overwrite it if we have a transcription of the user recording
 
-  // Update both windows with the response text
+  let visionApiResponse = await callVisionAPI(
+    screenshotFilePath,
+    questionInput
+  );
+
+  // If the Vision API response failed it will be null, set error message
+  visionApiResponse =
+    visionApiResponse ?? "There was an error calling the OpenAI Vision API";
+
+  // Update both windows with the response text (refactor this)
   mainWindow.webContents.send(
     "push-vision-response-to-windows",
     visionApiResponse
@@ -390,6 +388,8 @@ async function callVisionAPI(inputScreenshot, audioInput) {
     return responseContent;
   } catch (error) {
     console.log(error);
+    // return null to show error message to user
+    return null;
   }
 }
 
