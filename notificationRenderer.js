@@ -13,14 +13,16 @@ ipcRenderer.on("push-question-to-windows", (event, questionText) => {
   updateWindowMessage(`${questionText} ... thinking...`);
 });
 
-// push-transcription-to-windows
-
 ipcRenderer.on("start-recording", async () => {
   updateWindowMessage("Recording in progress...");
 });
 
-ipcRenderer.on("push-vision-response-to-windows", (event, visionResponse) => {
-  updateWindowMessage(visionResponse);
+ipcRenderer.on("update-notificationWindow-text", (event, textInput) => {
+  updateWindowMessage(textInput);
+});
+
+document.getElementById("closeBtn").addEventListener("click", () => {
+  ipcRenderer.send("close-notification-window");
 });
 
 function updateWindowMessage(message) {

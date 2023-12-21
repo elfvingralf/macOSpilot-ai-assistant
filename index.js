@@ -123,6 +123,7 @@ function createTextInputWindow() {
   textInputWindow.loadFile("textInput.html");
 }
 
+// Function to reposition notification and text input windows to the active application
 async function repositionWindow(selectedApplicationWindow, copilotWindow) {
   const { x, y, width, height } = selectedApplicationWindow.bounds;
   let newX, newY;
@@ -185,6 +186,7 @@ ipcMain.on("request-input-method", (event) => {
   event.reply("send-input-method", method);
 });
 
+// Close and nullify the text input window if closed by the user
 ipcMain.on("close-text-input-window", () => {
   if (textInputWindow) {
     textInputWindow.close();
@@ -195,13 +197,18 @@ ipcMain.on("close-text-input-window", () => {
 // Store the current input method (default to voice if not set)
 let inputMethod = store.get("inputMethod", "voice");
 
+// When a user submits a question by text, close the input text window and process the question
 ipcMain.on("text-input-submitted", (event, questionText) => {
   if (textInputWindow) {
     textInputWindow.close();
     textInputWindow = null; // Set to null after closing
   }
   // Adding user's question to windows to give sense of progress
-  notificationWindow.webContents.send("push-question-to-windows", questionText);
+  if (!notificationWindow) {
+    createNotificationWindow();
+  }
+
+  updateNotificationWindowText(questionText);
   mainWindow.webContents.send("push-question-to-windows", questionText);
 
   // Submit question and screenshot to Vision API
@@ -210,7 +217,6 @@ ipcMain.on("text-input-submitted", (event, questionText) => {
 
 // Recorded audio gets passed to this function when the microphone recording has stopped
 ipcMain.on("audio-buffer", (event, buffer) => {
-  // Calling this in case the user added
   openAiApiKey = store.get("userApiKey", "");
   openai = new OpenAI({
     apiKey: openAiApiKey,
@@ -249,8 +255,8 @@ ipcMain.on("audio-buffer", (event, buffer) => {
               "push-vision-response-to-windows",
               "There was an error transcribing your recording"
             );
-            notificationWindow.webContents.send(
-              "push-vision-response-to-windows",
+
+            updateNotificationWindowText(
               "There was an error transcribing your recording"
             );
           }
@@ -262,9 +268,20 @@ ipcMain.on("audio-buffer", (event, buffer) => {
   });
 });
 
-async function processInputs(screenshotFilePath, questionInput) {
-  // Set a default response and call the Vision API to overwrite it if we have a transcription of the user recording
+// Function to push new text to the notification window
+function updateNotificationWindowText(textToDisplay) {
+  // If the window has been closed by the user, create a new one
+  if (!notificationWindow) {
+    createNotificationWindow();
+  }
+  notificationWindow.webContents.send(
+    "update-notificationWindow-text",
+    textToDisplay
+  );
+}
 
+// Function to send user inputs to OpenAI Vision API and display/play response
+async function processInputs(screenshotFilePath, questionInput) {
   let visionApiResponse = await callVisionAPI(
     screenshotFilePath,
     questionInput
@@ -279,10 +296,7 @@ async function processInputs(screenshotFilePath, questionInput) {
     "push-vision-response-to-windows",
     visionApiResponse
   );
-  notificationWindow.webContents.send(
-    "push-vision-response-to-windows",
-    visionApiResponse
-  );
+  updateNotificationWindowText(visionApiResponse);
 
   // Call function to generate and playback audio of the Vision API response
   await playVisionApiResponse(visionApiResponse);
@@ -333,11 +347,7 @@ async function transcribeUserRecording(mp3FilePath) {
     );
 
     // Adding user's question to windows to give sense of progress
-    notificationWindow.webContents.send(
-      "push-question-to-windows",
-      response.data
-    );
-
+    updateNotificationWindowText(response.data);
     mainWindow.webContents.send("push-question-to-windows", response.data);
 
     return response.data;
@@ -477,7 +487,7 @@ app.whenReady().then(() => {
       console.error("Error requesting microphone access:", err);
     });
 
-  // This call initializes MediaRecorder with an 500ms audio recording, to get around an issue seen on some machines where the first user-triggered recording doesn't work.
+  // This call initializes MediaRecorder with an 1ms audio recording, to get around an issue seen on some machines where the first user-triggered recording doesn't work.
   mainWindow.webContents.send("init-mediaRecorder");
 
   // If defined keyboard shortcut is triggered then run
@@ -488,6 +498,9 @@ app.whenReady().then(() => {
       try {
         activeWindow = await activeWin();
         captureWindowStatus = await captureWindow(activeWindow.title);
+        if (!notificationWindow) {
+          createNotificationWindow();
+        }
         repositionWindow(activeWindow, "notificationWindow");
         // If captureWindow() can't find the selected window, show an error and exit the process
         if (captureWindowStatus != "Window found") {
@@ -496,20 +509,14 @@ app.whenReady().then(() => {
             "add-window-name-to-app",
             responseMessage
           );
-          notificationWindow.webContents.send(
-            "add-window-name-to-app",
-            responseMessage
-          );
+          updateNotificationWindowText(responseMessage);
           return;
         }
 
         // If window is found, continue as expected
         const responseMessage = `${activeWindow.owner.name}: ${activeWindow.title}`;
         mainWindow.webContents.send("add-window-name-to-app", responseMessage);
-        notificationWindow.webContents.send(
-          "add-window-name-to-app",
-          responseMessage
-        );
+        updateNotificationWindowText(responseMessage);
       } catch (error) {
         console.error("Error capturing the active window:", error);
       }
@@ -553,9 +560,10 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
 });
 
-ipcMain.on("update-analysis-content", (event, content) => {
-  // Forward the content to the notification window
+// Close and nullify the notification window if it's closed by the user
+ipcMain.on("close-notification-window", () => {
   if (notificationWindow) {
-    notificationWindow.webContents.send("update-analysis-content", content);
+    notificationWindow.close();
+    notificationWindow = null;
   }
 });
