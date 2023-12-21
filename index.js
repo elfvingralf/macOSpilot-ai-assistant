@@ -30,15 +30,18 @@ let openai = new OpenAI({
 
 const keyboardShortcut = "CommandOrControl+Shift+'"; // This is the keyboard shortcut that triggers the app
 
-const notificationWidth = 300; // Width of notification window
-const notificationHeight = 100; // Height of notification window
+const notificationWindowWidth = 300; // Width of notification window
+const notificationWindowHeight = 100; // Height of notification window
 const notificationOpacity = 0.8; // Opacity of notification window
 const mainWindowWidth = 600; // Width of main window
 const mainWindowHeight = 400; // Height of main window
+const textInputWindowWidth = 300; // Width of main window
+const textInputWindowHeight = 100; // Height of main window
 
 let isRecording = false;
 let mainWindow;
 let notificationWindow;
+let textInputWindow;
 
 let conversationHistory = [
   {
@@ -85,8 +88,8 @@ function createMainWindow() {
 // Create "always on top" Electron notification window
 function createNotificationWindow() {
   notificationWindow = new BrowserWindow({
-    width: notificationWidth,
-    height: notificationHeight,
+    width: notificationWindowWidth,
+    height: notificationWindowHeight,
     frame: false,
     transparent: true, // Enable transparency
     webPreferences: {
@@ -102,21 +105,46 @@ function createNotificationWindow() {
   notificationWindow.loadFile("notifications.html");
 }
 
-// Function to re-position "always on top" notification window when a new active window is used
-function repositionNotificationWindow(selectedWindow) {
-  // Calculate top-right position which is what's currently used
-  const topRightX =
-    selectedWindow.bounds.x + selectedWindow.bounds.width - notificationWidth;
-  const topRightY = selectedWindow.bounds.y;
+function createTextInputWindow() {
+  textInputWindow = new BrowserWindow({
+    width: textInputWindowWidth,
+    height: textInputWindowHeight,
+    frame: false,
+    transparent: true, // Enable transparency
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    x: 100,
+    y: 100,
+  });
+  textInputWindow.loadFile("textInput.html");
+}
 
-  // Ensure the window is not positioned off-screen
-  const safeX = Math.max(topRightX, 0);
-  const safeY = Math.max(topRightY, 0);
+async function repositionWindow(selectedApplicationWindow, copilotWindow) {
+  const { x, y, width, height } = selectedApplicationWindow.bounds;
+  let newX, newY;
 
-  // Set the position of the notification window
-  // Currently set to 15px in form the right-hand corner of the active window
-  if (notificationWindow) {
-    notificationWindow.setPosition(safeX - 15, safeY + 15);
+  // Position at the top right corner for notificationWindow
+  if (copilotWindow === "notificationWindow") {
+    newX = x + width - notificationWindowWidth;
+    newY = y;
+
+    // Adjust to keep it on-screen
+    newX = Math.round(Math.max(newX, 0)) - 15;
+    newY = Math.round(Math.max(newY, 0)) + 15;
+    notificationWindow.setPosition(newX, newY);
+  }
+  // Center the textInputWindow
+  else if (copilotWindow === "textInputWindow") {
+    newX = x + width / 2 - textInputWindowWidth / 2;
+    newY = y + height / 2 - textInputWindowHeight / 2;
+    // Adjust to keep it on-screen
+    newX = Math.round(Math.max(newX, 0));
+    newY = Math.round(Math.max(newY, 0));
+    textInputWindow.setPosition(newX, newY);
   }
 }
 
@@ -143,6 +171,41 @@ ipcMain.on("request-api-key", (event) => {
 // fetch the key to send to backend logic
 ipcMain.handle("get-api-key", (event) => {
   return store.get("userApiKey", "");
+});
+
+// Listen for question input method changes (audio vs keyboard)
+ipcMain.on("set-input-method", (event, method) => {
+  store.set("inputMethod", method);
+  inputMethod = method; // Update the global variable
+});
+
+// Listen for request for current question input method changes (audio vs keyboard)
+ipcMain.on("request-input-method", (event) => {
+  const method = store.get("inputMethod", "voice"); // Default to 'voice' if not set
+  event.reply("send-input-method", method);
+});
+
+ipcMain.on("close-text-input-window", () => {
+  if (textInputWindow) {
+    textInputWindow.close();
+    textInputWindow = null;
+  }
+});
+
+// Store the current input method (default to voice if not set)
+let inputMethod = store.get("inputMethod", "voice");
+
+ipcMain.on("text-input-submitted", (event, questionText) => {
+  if (textInputWindow) {
+    textInputWindow.close();
+    textInputWindow = null; // Set to null after closing
+  }
+  // Adding user's question to windows to give sense of progress
+  notificationWindow.webContents.send("push-question-to-windows", questionText);
+  mainWindow.webContents.send("push-question-to-windows", questionText);
+
+  // Submit question and screenshot to Vision API
+  processInputs(screenshotFilePath, questionText);
 });
 
 // Recorded audio gets passed to this function when the microphone recording has stopped
@@ -178,26 +241,30 @@ ipcMain.on("audio-buffer", (event, buffer) => {
 
           // Set a default response and call the Vision API to overwrite it if we have a transcription of the user recording
           let visionApiResponse = "There was an error calling OpenAI.";
+
           if (audioInput) {
             // Call Vision API with screenshot and transcription of question
-            visionApiResponse = await callVisionAPI(
-              screenshotFilePath,
-              audioInput
-            );
+            //   visionApiResponse = await callVisionAPI(
+            //     screenshotFilePath,
+            //     audioInput
+            //   );
+            // }
+
+            // // Update both windows with the response text
+            // mainWindow.webContents.send(
+            //   "push-vision-response-to-windows",
+            //   visionApiResponse
+            // );
+            // notificationWindow.webContents.send(
+            //   "push-vision-response-to-windows",
+            //   visionApiResponse
+            // );
+
+            // // Call function to generate and playback audio of the Vision API response
+            // await playVisionApiResponse(visionApiResponse);
+
+            processInputs(screenshotFilePath, audioInput);
           }
-
-          // Update both windows with the response text
-          mainWindow.webContents.send(
-            "push-vision-response-to-windows",
-            visionApiResponse
-          );
-          notificationWindow.webContents.send(
-            "push-vision-response-to-windows",
-            visionApiResponse
-          );
-
-          // Call function to generate and playback audio of the Vision API response
-          await playVisionApiResponse(visionApiResponse);
         })
         .save(mp3FilePath);
     } catch (error) {
@@ -205,6 +272,23 @@ ipcMain.on("audio-buffer", (event, buffer) => {
     }
   });
 });
+
+async function processInputs(screenshotFilePath, questionInput) {
+  visionApiResponse = await callVisionAPI(screenshotFilePath, questionInput);
+
+  // Update both windows with the response text
+  mainWindow.webContents.send(
+    "push-vision-response-to-windows",
+    visionApiResponse
+  );
+  notificationWindow.webContents.send(
+    "push-vision-response-to-windows",
+    visionApiResponse
+  );
+
+  // Call function to generate and playback audio of the Vision API response
+  await playVisionApiResponse(visionApiResponse);
+}
 
 // Capture a screenshot of the selected window, and save it to disk
 async function captureWindow(windowName) {
@@ -249,15 +333,14 @@ async function transcribeUserRecording(mp3FilePath) {
         },
       }
     );
-    console.log(response.data);
 
     // Adding user's question to windows to give sense of progress
     notificationWindow.webContents.send(
-      "push-transcription-to-windows",
+      "push-question-to-windows",
       response.data
     );
 
-    mainWindow.webContents.send("push-transcription-to-windows", response.data);
+    mainWindow.webContents.send("push-question-to-windows", response.data);
 
     return response.data;
   } catch (error) {
@@ -381,15 +464,18 @@ app.whenReady().then(() => {
   createNotificationWindow();
 
   // Request microphone access
-  systemPreferences.askForMediaAccess('microphone').then(accessGranted => {
-    if (accessGranted) {
-      console.log('Microphone access granted');
-    } else {
-      console.log('Microphone access denied');
-    }
-  }).catch(err => {
-    console.error('Error requesting microphone access:', err);
-  });
+  systemPreferences
+    .askForMediaAccess("microphone")
+    .then((accessGranted) => {
+      if (accessGranted) {
+        console.log("Microphone access granted");
+      } else {
+        console.log("Microphone access denied");
+      }
+    })
+    .catch((err) => {
+      console.error("Error requesting microphone access:", err);
+    });
 
   // This call initializes MediaRecorder with an 500ms audio recording, to get around an issue seen on some machines where the first user-triggered recording doesn't work.
   mainWindow.webContents.send("init-mediaRecorder");
@@ -398,11 +484,11 @@ app.whenReady().then(() => {
   globalShortcut.register(keyboardShortcut, async () => {
     // If the microphone recording isn't already running
     if (!isRecording) {
+      let activeWindow;
       try {
-        const activeWindow = await activeWin();
+        activeWindow = await activeWin();
         captureWindowStatus = await captureWindow(activeWindow.title);
-        repositionNotificationWindow(activeWindow);
-
+        repositionWindow(activeWindow, "notificationWindow");
         // If captureWindow() can't find the selected window, show an error and exit the process
         if (captureWindowStatus != "Window found") {
           const responseMessage = "Unable to capture this window, try another.";
@@ -427,9 +513,19 @@ app.whenReady().then(() => {
       } catch (error) {
         console.error("Error capturing the active window:", error);
       }
-      mainWindow.webContents.send("start-recording");
-      notificationWindow.webContents.send("start-recording");
-      isRecording = true;
+      // only start recording if the user is using voice input
+      if (inputMethod == "voice") {
+        mainWindow.webContents.send("start-recording");
+        notificationWindow.webContents.send("start-recording");
+        isRecording = true;
+      }
+      // If voice isn't used as input, trigger the text-based input
+      else {
+        if (!textInputWindow) {
+          createTextInputWindow();
+        }
+        repositionWindow(activeWindow, "textInputWindow");
+      }
     } else {
       // If we're already recording, the keyboard shortcut means we should stop
       mainWindow.webContents.send("stop-recording");

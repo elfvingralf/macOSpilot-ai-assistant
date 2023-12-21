@@ -114,6 +114,29 @@
     <div id="settingsModal" class="modal">
       <div class="modal-content">
         <span class="close">&times;</span>
+        <h4>Input Method</h4>
+        <div class="modal-row">
+          <div>
+            <input
+              type="radio"
+              id="inputMethodVoice"
+              name="inputMethod"
+              value="voice"
+              checked
+            />
+            <label for="inputMethodVoice">Voice</label>
+          </div>
+          <div>
+            <input
+              type="radio"
+              id="inputMethodText"
+              name="inputMethod"
+              value="text"
+            />
+            <label for="inputMethodText">Text</label>
+          </div>
+        </div>
+
         <div class="modal-row">
           <label for="api-key-input">OpenAI API-key:</label>
           <input
@@ -123,7 +146,7 @@
             placeholder="Enter API Key"
           />
         </div>
-        <div class="version-text">v0.1</div>
+        <div class="version-text">v0.2</div>
       </div>
     </div>
     <div id="analysis"></div>
@@ -170,6 +193,34 @@
       // Handle receiving the masked API key
       ipcRenderer.on("send-api-key", (event, maskedApiKey) => {
         apiKeyInput.value = maskedApiKey; // Display the masked API key
+      });
+
+      // Handle the toggle between input method radio buttons
+      document
+        .getElementById("inputMethodVoice")
+        .addEventListener("change", (event) => {
+          if (event.target.checked) {
+            ipcRenderer.send("set-input-method", "voice");
+          }
+        });
+      document
+        .getElementById("inputMethodText")
+        .addEventListener("change", (event) => {
+          if (event.target.checked) {
+            ipcRenderer.send("set-input-method", "text");
+          }
+        });
+
+      // On load, request the current input method
+      ipcRenderer.send("request-input-method");
+
+      // Handle receiving the current input method
+      ipcRenderer.on("send-input-method", (event, method) => {
+        if (method === "text") {
+          document.getElementById("inputMethodText").checked = true;
+        } else {
+          document.getElementById("inputMethodVoice").checked = true;
+        }
       });
     </script>
   </body>

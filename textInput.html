@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Text Input</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 10px;
+        background-color: rgba(
+          255,
+          255,
+          255,
+          0.8
+        ); /* Semi-transparent background */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-family: Arial, sans-serif;
+        position: relative; /* Added for positioning the close button */
+      }
+      #textInput {
+        padding: 5px;
+        width: 80%;
+        height: 50px; /* Adjust the height for two rows */
+        margin-bottom: 10px;
+        resize: none; /* Prevent resizing */
+      }
+      #closeBtn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        border: none;
+        background: transparent;
+        font-size: 20px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="closeBtn" title="Close">&times;</button>
+    <!-- Close button -->
+    <textarea
+      id="textInput"
+      rows="2"
+      placeholder="Type your question and hit enter"
+      autofocus
+    ></textarea>
+
+    <script src="textInputRenderer.js"></script>
+  </body>
+</html>

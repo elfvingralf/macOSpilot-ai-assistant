@@ -13,8 +13,8 @@ ipcRenderer.on("push-vision-response-to-windows", (event, visionResponse) => {
   updateWindowMessage(visionResponse);
 });
 
-ipcRenderer.on("push-transcription-to-windows", (event, transcriptionData) => {
-  updateWindowMessage(`${transcriptionData} ... thinking...`);
+ipcRenderer.on("push-question-to-windows", (event, questionText) => {
+  updateWindowMessage(`${questionText} ... thinking...`);
 });
 
 // This triggers a 500 ms audio/microphone recording as soon as the app loads. It's a work-around to address an issue seen on some machines where the first audio recording doesn't work.

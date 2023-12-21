@@ -9,8 +9,8 @@ ipcRenderer.on("stop-recording", () => {
   updateWindowMessage("Processing...");
 });
 
-ipcRenderer.on("push-transcription-to-windows", (event, transcriptionData) => {
-  updateWindowMessage(`${transcriptionData} ... thinking...`);
+ipcRenderer.on("push-question-to-windows", (event, questionText) => {
+  updateWindowMessage(`${questionText} ... thinking...`);
 });
 
 // push-transcription-to-windows
